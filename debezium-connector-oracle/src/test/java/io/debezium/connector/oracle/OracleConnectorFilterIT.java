@@ -34,10 +34,12 @@ import io.debezium.util.Testing;
 public class OracleConnectorFilterIT extends AbstractConnectorTest {
 
     private static OracleConnection connection;
+    private static OracleConnection adminConnection;
 
     @BeforeClass
     public static void beforeClass() throws SQLException {
         connection = TestHelper.testConnection();
+        adminConnection = TestHelper.adminConnection();
     }
 
     @AfterClass
@@ -54,6 +56,24 @@ public class OracleConnectorFilterIT extends AbstractConnectorTest {
         TestHelper.dropTable(connection, "debezium.table2");
         TestHelper.dropTable(connection, "debezium.table3");
 
+        try {
+            adminConnection.execute("DROP USER debezium2 CASCADE");
+        }
+        catch (SQLException e) {
+        }
+
+        adminConnection.execute(
+                "CREATE USER debezium2 IDENTIFIED BY dbz",
+                "GRANT CONNECT TO debezium2",
+                "GRANT CREATE SESSION TO debezium2",
+                "GRANT CREATE TABLE TO debezium2",
+                "GRANT CREATE SEQUENCE TO debezium2",
+                "ALTER USER debezium2 QUOTA 100M ON users",
+                "create table debezium2.table2 (id numeric(9,0) not null,name varchar2(1000),primary key (id))",
+                "GRANT ALL PRIVILEGES ON debezium2.table2 to debezium",
+                "GRANT SELECT ON debezium2.table2 to " + TestHelper.CONNECTOR_USER,
+                "ALTER TABLE debezium2.table2 ADD SUPPLEMENTAL LOG DATA (ALL) COLUMNS"
+            );
         String ddl = "create table debezium.table1 (" +
                 "  id numeric(9,0) not null, " +
                 "  name varchar2(1000), " +
@@ -83,7 +103,7 @@ public class OracleConnectorFilterIT extends AbstractConnectorTest {
         Configuration config = TestHelper.defaultConfig()
                 .with(
                         RelationalDatabaseConnectorConfig.TABLE_WHITELIST,
-                        "ORCLPDB1\\.DEBEZIUM\\.TABLE1,ORCLPDB1\\.DEBEZIUM\\.TABLE3")
+                        "ORCLPDB1\\.DEBEZIUM2\\.TABLE2,ORCLPDB1\\.DEBEZIUM\\.TABLE1,ORCLPDB1\\.DEBEZIUM\\.TABLE3")
                 .with(OracleConnectorConfig.SNAPSHOT_MODE, SnapshotMode.INITIAL_SCHEMA_ONLY)
                 .build();
 
@@ -114,7 +134,7 @@ public class OracleConnectorFilterIT extends AbstractConnectorTest {
         assertThat(testTableRecords).hasSize(1);
 
         VerifyRecord.isValidInsert(testTableRecords.get(0), "ID", 1);
-        Struct after = (Struct) ((Struct)testTableRecords.get(0).value()).get("after");
+        Struct after = (Struct) ((Struct) testTableRecords.get(0).value()).get("after");
         assertThat(after.get("ID")).isEqualTo(1);
         assertThat(after.get("NAME")).isEqualTo("Text-1");
 
@@ -125,7 +145,7 @@ public class OracleConnectorFilterIT extends AbstractConnectorTest {
         assertThat(testTableRecords).hasSize(1);
 
         VerifyRecord.isValidInsert(testTableRecords.get(0), "ID", 3);
-        after = (Struct) ((Struct)testTableRecords.get(0).value()).get("after");
+        after = (Struct) ((Struct) testTableRecords.get(0).value()).get("after");
         assertThat(after.get("ID")).isEqualTo(3);
         assertThat(after.get("NAME")).isEqualTo("Text-3");
     }
@@ -166,7 +186,7 @@ public class OracleConnectorFilterIT extends AbstractConnectorTest {
         assertThat(testTableRecords).hasSize(1);
 
         VerifyRecord.isValidInsert(testTableRecords.get(0), "ID", 1);
-        Struct after = (Struct) ((Struct)testTableRecords.get(0).value()).get("after");
+        Struct after = (Struct) ((Struct) testTableRecords.get(0).value()).get("after");
         assertThat(after.get("ID")).isEqualTo(1);
         assertThat(after.get("NAME")).isEqualTo("Text-1");
 
@@ -177,7 +197,7 @@ public class OracleConnectorFilterIT extends AbstractConnectorTest {
         assertThat(testTableRecords).hasSize(1);
 
         VerifyRecord.isValidInsert(testTableRecords.get(0), "ID", 3);
-        after = (Struct) ((Struct)testTableRecords.get(0).value()).get("after");
+        after = (Struct) ((Struct) testTableRecords.get(0).value()).get("after");
         assertThat(after.get("ID")).isEqualTo(3);
         assertThat(after.get("NAME")).isEqualTo("Text-3");
     }
